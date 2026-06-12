@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFC Bild-Writer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: sans-serif;
+    background: #111;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  h1 { font-size: 1.3rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .sub { font-size: 0.85rem; color: #888; margin-bottom: 1.5rem; }
+  .card {
+    background: #1c1c1c;
+    border: 0.5px solid #333;
+    border-radius: 14px;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 420px;
+  }
+  .dropzone {
+    border: 1.5px dashed #444;
+    border-radius: 10px;
+    padding: 2rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 1rem;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: #7f77dd; background: #1e1d2e; }
+  .dropzone input { display: none; }
+  .dropzone-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .dropzone-label { font-size: 0.9rem; color: #aaa; }
+  .dropzone-label span { color: #a09de8; text-decoration: underline; cursor: pointer; }
+  #preview-wrap { display: none; margin-bottom: 1rem; text-align: center; }
+  #preview {
+    max-width: 100%;
+    max-height: 180px;
+    border-radius: 8px;
+    border: 0.5px solid #333;
+    image-rendering: pixelated;
+  }
+  .meta { font-size: 0.78rem; color: #888; margin-top: 0.4rem; }
+  .warn { font-size: 0.78rem; color: #e2a030; margin-top: 0.3rem; }
+  .btn {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: #534ab7;
+    color: #fff;
+    transition: background 0.2s, opacity 0.2s;
+    margin-top: 0.5rem;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:not(:disabled):hover { background: #6a60d0; }
+  #status {
+    margin-top: 1rem;
+    font-size: 0.88rem;
+    text-align: center;
+    min-height: 1.3em;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    display: none;
+  }
+  #status.info { background: #1a2a3a; color: #7ab8f5; display: block; }
+  #status.success { background: #0f2a18; color: #5cd68a; display: block; }
+  #status.error { background: #2a1010; color: #f07070; display: block; }
+  #status.waiting { background: #1e1d2e; color: #a09de8; display: block; }
+  .divider { border: none; border-top: 0.5px solid #2a2a2a; margin: 1rem 0; }
+  .section-label { font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>NFC Bild-Writer</h1>
+  <p class="sub">Schreibt ein PNG-Bild direkt auf einen NFC-Chip (NTAG215 etc.)</p>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept="image/png,image/jpeg,image/gif,image/webp">
+    <div class="dropzone-icon">🖼️</div>
+    <div class="dropzone-label">Bild hierher ziehen oder <span onclick="document.getElementById('fileInput').click()">auswählen</span></div>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview" src="" alt="Vorschau">
+    <div class="meta" id="meta"></div>
+    <div class="warn" id="warn"></div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section-label">Chip beschreiben</div>
+  <button class="btn" id="writeBtn" disabled>📲 NFC-Chip jetzt beschreiben</button>
+
+  <div id="status"></div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const previewWrap = document.getElementById('preview-wrap');
+const preview = document.getElementById('preview');
+const metaEl = document.getElementById('meta');
+const warnEl = document.getElementById('warn');
+const writeBtn = document.getElementById('writeBtn');
+const statusEl = document.getElementById('status');
+
+let pngBytes = null;
+let currentMime = 'image/png';
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = type;
+}
+
+function formatBytes(n) {
+  return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB';
+}
+
+async function loadFile(file) {
+  currentMime = file.type || 'image/png';
+
+  const arrayBuf = await file.arrayBuffer();
+  pngBytes = new Uint8Array(arrayBuf);
+
+  const url = URL.createObjectURL(file);
+  preview.src = url;
+  previewWrap.style.display = 'block';
+
+  preview.onload = () => {
+    const w = preview.naturalWidth;
+    const h = preview.naturalHeight;
+    const size = pngBytes.length;
+    metaEl.textContent = `${w} × ${h} px  ·  ${formatBytes(size)}  ·  ${currentMime}`;
+
+    warnEl.textContent = '';
+    if (size > 504) {
+      warnEl.textContent = `⚠️ ${formatBytes(size)} > 504 B – zu groß für NTAG215! Bild verkleinern.`;
+      writeBtn.disabled = true;
+    } else if (size > 400) {
+      warnEl.textContent = `⚠️ ${formatBytes(size)} – knapp. Könnte auf manchen Chips scheitern.`;
+      writeBtn.disabled = false;
+    } else {
+      writeBtn.disabled = false;
+    }
+  };
+}
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+writeBtn.addEventListener('click', async () => {
+  if (!pngBytes) return;
+
+  if (!('NDEFReader' in window)) {
+    setStatus('❌ Web NFC wird von diesem Browser nicht unterstützt. Bitte Chrome für Android verwenden.', 'error');
+    return;
+  }
+
+  setStatus('📱 Chip jetzt ans Handy halten...', 'waiting');
+  writeBtn.disabled = true;
+
+  try {
+    const ndef = new NDEFReader();
+    await ndef.write({
+      records: [{
+        recordType: 'mime',
+        mediaType: currentMime,
+        data: pngBytes
+      }]
+    });
+    setStatus('✅ Erfolgreich auf Chip geschrieben!', 'success');
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      setStatus('❌ Zugriff verweigert – Berechtigung erteilen und erneut versuchen.', 'error');
+    } else if (err.name === 'NotSupportedError') {
+      setStatus('❌ NFC nicht verfügbar auf diesem Gerät.', 'error');
+    } else {
+      setStatus('❌ Fehler: ' + err.message, 'error');
+    }
+  } finally {
+    writeBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
