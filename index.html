@@ -41,16 +41,35 @@
   .dropzone-icon { font-size: 2rem; margin-bottom: 0.5rem; }
   .dropzone-label { font-size: 0.9rem; color: #aaa; }
   .dropzone-label span { color: #a09de8; text-decoration: underline; cursor: pointer; }
-  #preview-wrap { display: none; margin-bottom: 1rem; text-align: center; }
-  #preview {
+
+  .preview-row {
+    display: none;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    align-items: flex-start;
+  }
+  .preview-box {
+    flex: 1;
+    text-align: center;
+  }
+  .preview-box img {
     max-width: 100%;
-    max-height: 180px;
-    border-radius: 8px;
+    max-height: 130px;
+    border-radius: 6px;
     border: 0.5px solid #333;
     image-rendering: pixelated;
   }
+  .preview-label { font-size: 0.72rem; color: #666; margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
   .meta { font-size: 0.78rem; color: #888; margin-top: 0.4rem; }
-  .warn { font-size: 0.78rem; color: #e2a030; margin-top: 0.3rem; }
+  .arrow { font-size: 1.5rem; color: #555; align-self: center; }
+
+  .slider-row { margin-bottom: 1rem; }
+  .slider-row label { font-size: 0.8rem; color: #aaa; display: flex; justify-content: space-between; margin-bottom: 0.3rem; }
+  input[type=range] { width: 100%; accent-color: #7f77dd; }
+
+  .warn { font-size: 0.78rem; color: #e2a030; margin-bottom: 0.5rem; }
+  .ok   { font-size: 0.78rem; color: #5cd68a; margin-bottom: 0.5rem; }
+
   .btn {
     width: 100%;
     padding: 0.75rem;
@@ -62,10 +81,10 @@
     background: #534ab7;
     color: #fff;
     transition: background 0.2s, opacity 0.2s;
-    margin-top: 0.5rem;
   }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn:not(:disabled):hover { background: #6a60d0; }
+
   #status {
     margin-top: 1rem;
     font-size: 0.88rem;
@@ -75,52 +94,79 @@
     border-radius: 8px;
     display: none;
   }
-  #status.info { background: #1a2a3a; color: #7ab8f5; display: block; }
+  #status.info    { background: #1a2a3a; color: #7ab8f5; display: block; }
   #status.success { background: #0f2a18; color: #5cd68a; display: block; }
-  #status.error { background: #2a1010; color: #f07070; display: block; }
+  #status.error   { background: #2a1010; color: #f07070; display: block; }
   #status.waiting { background: #1e1d2e; color: #a09de8; display: block; }
-  .divider { border: none; border-top: 0.5px solid #2a2a2a; margin: 1rem 0; }
+
+  hr.divider { border: none; border-top: 0.5px solid #2a2a2a; margin: 1rem 0; }
   .section-label { font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
 </style>
 </head>
 <body>
-
 <div class="card">
   <h1>NFC Bild-Writer</h1>
-  <p class="sub">Schreibt ein PNG-Bild direkt auf einen NFC-Chip (NTAG215 etc.)</p>
+  <p class="sub">Beliebiges Bild → automatisch auf Chip-Größe skaliert → auf NFC schreiben</p>
 
   <div class="dropzone" id="dropzone">
-    <input type="file" id="fileInput" accept="image/png,image/jpeg,image/gif,image/webp">
+    <input type="file" id="fileInput" accept="image/*">
     <div class="dropzone-icon">🖼️</div>
     <div class="dropzone-label">Bild hierher ziehen oder <span onclick="document.getElementById('fileInput').click()">auswählen</span></div>
   </div>
 
-  <div id="preview-wrap">
-    <img id="preview" src="" alt="Vorschau">
-    <div class="meta" id="meta"></div>
-    <div class="warn" id="warn"></div>
+  <div class="preview-row" id="previewRow">
+    <div class="preview-box">
+      <div class="preview-label">Original</div>
+      <img id="previewOrig" src="" alt="Original">
+      <div class="meta" id="metaOrig"></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="preview-box">
+      <div class="preview-label">Auf Chip</div>
+      <img id="previewOut" src="" alt="Ausgabe">
+      <div class="meta" id="metaOut"></div>
+    </div>
   </div>
 
-  <hr class="divider">
+  <div id="sizeControls" style="display:none">
+    <div class="slider-row">
+      <label>Max. Chip-Speicher <span id="limitLabel">504 B (NTAG215)</span></label>
+      <input type="range" id="limitSlider" min="144" max="888" step="1" value="504">
+    </div>
+  </div>
 
+  <div id="feedback"></div>
+
+  <hr class="divider">
   <div class="section-label">Chip beschreiben</div>
   <button class="btn" id="writeBtn" disabled>📲 NFC-Chip jetzt beschreiben</button>
-
   <div id="status"></div>
 </div>
 
-<script>
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const previewWrap = document.getElementById('preview-wrap');
-const preview = document.getElementById('preview');
-const metaEl = document.getElementById('meta');
-const warnEl = document.getElementById('warn');
-const writeBtn = document.getElementById('writeBtn');
-const statusEl = document.getElementById('status');
+<canvas id="canvas" style="display:none"></canvas>
 
-let pngBytes = null;
-let currentMime = 'image/png';
+<script>
+const CHIP_LIMITS = {144: 'NTAG213', 504: 'NTAG215', 888: 'NTAG216'};
+const MAX_BYTES = 504;
+
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('fileInput');
+const previewRow = document.getElementById('previewRow');
+const previewOrig= document.getElementById('previewOrig');
+const previewOut = document.getElementById('previewOut');
+const metaOrig   = document.getElementById('metaOrig');
+const metaOut    = document.getElementById('metaOut');
+const limitSlider= document.getElementById('limitSlider');
+const limitLabel = document.getElementById('limitLabel');
+const sizeControls=document.getElementById('sizeControls');
+const feedbackEl = document.getElementById('feedback');
+const writeBtn   = document.getElementById('writeBtn');
+const statusEl   = document.getElementById('status');
+const canvas     = document.getElementById('canvas');
+const ctx        = canvas.getContext('2d');
+
+let origImage = null;
+let finalPngBytes = null;
 
 function setStatus(msg, type) {
   statusEl.textContent = msg;
@@ -128,71 +174,105 @@ function setStatus(msg, type) {
 }
 
 function formatBytes(n) {
-  return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB';
+  return n < 1024 ? n + ' B' : (n/1024).toFixed(1)+' KB';
 }
 
+function chipName(bytes) {
+  if (bytes <= 144) return 'NTAG213';
+  if (bytes <= 504) return 'NTAG215';
+  return 'NTAG216';
+}
+
+// Findet die größte quadratische Größe die in maxBytes passt
+function findBestSize(img, maxBytes) {
+  const aspect = img.naturalWidth / img.naturalHeight;
+  // Probiere von groß nach klein
+  for (let size = 60; size >= 1; size--) {
+    let w, h;
+    if (aspect >= 1) { w = size; h = Math.max(1, Math.round(size / aspect)); }
+    else             { h = size; w = Math.max(1, Math.round(size * aspect)); }
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/png');
+    const b64 = dataUrl.split(',')[1];
+    const bytes = Math.ceil(b64.length * 3 / 4);
+    if (bytes <= maxBytes) return { w, h, bytes, dataUrl };
+  }
+  return null;
+}
+
+function processImage() {
+  if (!origImage) return;
+  const maxBytes = parseInt(limitSlider.value);
+  const result = findBestSize(origImage, maxBytes);
+
+  feedbackEl.innerHTML = '';
+  if (!result) {
+    feedbackEl.innerHTML = '<div class="warn">❌ Selbst 1×1px passt nicht in den Speicher – sollte nie passieren.</div>';
+    writeBtn.disabled = true;
+    return;
+  }
+
+  // Vorschau aktualisieren
+  previewOut.src = result.dataUrl;
+  metaOut.textContent = `${result.w} × ${result.h} px  ·  ${formatBytes(result.bytes)}`;
+
+  // Bytes für Schreiben speichern
+  const b64 = result.dataUrl.split(',')[1];
+  const bin = atob(b64);
+  finalPngBytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) finalPngBytes[i] = bin.charCodeAt(i);
+
+  const pct = Math.round(result.bytes / maxBytes * 100);
+  feedbackEl.innerHTML = `<div class="ok">✅ Passt! ${formatBytes(result.bytes)} von ${formatBytes(maxBytes)} genutzt (${pct}%)</div>`;
+  writeBtn.disabled = false;
+}
+
+limitSlider.addEventListener('input', () => {
+  const v = parseInt(limitSlider.value);
+  limitLabel.textContent = `${formatBytes(v)} (${chipName(v)})`;
+  processImage();
+});
+
 async function loadFile(file) {
-  currentMime = file.type || 'image/png';
-
-  const arrayBuf = await file.arrayBuffer();
-  pngBytes = new Uint8Array(arrayBuf);
-
   const url = URL.createObjectURL(file);
-  preview.src = url;
-  previewWrap.style.display = 'block';
-
-  preview.onload = () => {
-    const w = preview.naturalWidth;
-    const h = preview.naturalHeight;
-    const size = pngBytes.length;
-    metaEl.textContent = `${w} × ${h} px  ·  ${formatBytes(size)}  ·  ${currentMime}`;
-
-    warnEl.textContent = '';
-    if (size > 504) {
-      warnEl.textContent = `⚠️ ${formatBytes(size)} > 504 B – zu groß für NTAG215! Bild verkleinern.`;
-      writeBtn.disabled = true;
-    } else if (size > 400) {
-      warnEl.textContent = `⚠️ ${formatBytes(size)} – knapp. Könnte auf manchen Chips scheitern.`;
-      writeBtn.disabled = false;
-    } else {
-      writeBtn.disabled = false;
-    }
+  const img = new Image();
+  img.onload = () => {
+    origImage = img;
+    previewOrig.src = url;
+    metaOrig.textContent = `${img.naturalWidth} × ${img.naturalHeight} px  ·  ${formatBytes(file.size)}  ·  ${file.type || 'image'}`;
+    previewRow.style.display = 'flex';
+    sizeControls.style.display = 'block';
+    processImage();
   };
+  img.src = url;
 }
 
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
 dropzone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('drag');
+  e.preventDefault(); dropzone.classList.remove('drag');
   if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
 writeBtn.addEventListener('click', async () => {
-  if (!pngBytes) return;
-
+  if (!finalPngBytes) return;
   if (!('NDEFReader' in window)) {
-    setStatus('❌ Web NFC wird von diesem Browser nicht unterstützt. Bitte Chrome für Android verwenden.', 'error');
+    setStatus('❌ Web NFC nicht unterstützt – bitte Chrome für Android verwenden.', 'error');
     return;
   }
-
   setStatus('📱 Chip jetzt ans Handy halten...', 'waiting');
   writeBtn.disabled = true;
-
   try {
     const ndef = new NDEFReader();
-    await ndef.write({
-      records: [{
-        recordType: 'mime',
-        mediaType: currentMime,
-        data: pngBytes
-      }]
-    });
+    await ndef.write({ records: [{ recordType: 'mime', mediaType: 'image/png', data: finalPngBytes }] });
     setStatus('✅ Erfolgreich auf Chip geschrieben!', 'success');
   } catch (err) {
     if (err.name === 'NotAllowedError') {
-      setStatus('❌ Zugriff verweigert – Berechtigung erteilen und erneut versuchen.', 'error');
+      setStatus('❌ Berechtigung verweigert – erneut versuchen und Zulassen tippen.', 'error');
     } else if (err.name === 'NotSupportedError') {
       setStatus('❌ NFC nicht verfügbar auf diesem Gerät.', 'error');
     } else {
