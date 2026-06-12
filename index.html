@@ -25,7 +25,7 @@
     border-radius: 14px;
     padding: 1.5rem;
     width: 100%;
-    max-width: 420px;
+    max-width: 440px;
   }
   .dropzone {
     border: 1.5px dashed #444;
@@ -47,14 +47,11 @@
     gap: 1rem;
     margin-bottom: 1rem;
     align-items: flex-start;
+    justify-content: center;
   }
-  .preview-box {
-    flex: 1;
-    text-align: center;
-  }
+  .preview-box { flex: 1; text-align: center; max-width: 160px; }
   .preview-box img {
-    width: 120px;
-    height: 120px;
+    width: 120px; height: 120px;
     object-fit: contain;
     border-radius: 6px;
     border: 0.5px solid #333;
@@ -62,39 +59,66 @@
     background: #0a0a0a;
   }
   .preview-label { font-size: 0.72rem; color: #666; margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
-  .meta { font-size: 0.78rem; color: #888; margin-top: 0.4rem; }
-  .arrow { font-size: 1.5rem; color: #555; align-self: center; }
+  .meta { font-size: 0.75rem; color: #888; margin-top: 0.4rem; line-height: 1.4; }
+  .arrow { font-size: 1.5rem; color: #555; align-self: center; flex: 0; }
 
-  .slider-row { margin-bottom: 1rem; }
+  .controls { display: none; }
+  .slider-row { margin-bottom: 0.8rem; }
   .slider-row label { font-size: 0.8rem; color: #aaa; display: flex; justify-content: space-between; margin-bottom: 0.3rem; }
   input[type=range] { width: 100%; accent-color: #7f77dd; }
+
+  .opt-row { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .opt-btn {
+    flex: 1; min-width: 60px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #222;
+    color: #aaa;
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .opt-btn:hover { border-color: #7f77dd; color: #eee; }
+  .opt-btn.active { background: #2d2960; border-color: #7f77dd; color: #c5c2ff; }
+
+  .toggle-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem; font-size: 0.82rem; color: #aaa; }
+  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: #333; border-radius: 20px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background: #aaa; border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: #534ab7; }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(16px); background: #fff; }
 
   .warn { font-size: 0.78rem; color: #e2a030; margin-bottom: 0.5rem; }
   .ok   { font-size: 0.78rem; color: #5cd68a; margin-bottom: 0.5rem; }
 
   .btn {
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: 8px;
-    border: none;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    background: #534ab7;
-    color: #fff;
+    width: 100%; padding: 0.75rem;
+    border-radius: 8px; border: none;
+    font-size: 1rem; font-weight: 500;
+    cursor: pointer; background: #534ab7; color: #fff;
     transition: background 0.2s, opacity 0.2s;
   }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn:not(:disabled):hover { background: #6a60d0; }
 
   #status {
-    margin-top: 1rem;
-    font-size: 0.88rem;
-    text-align: center;
-    min-height: 1.3em;
-    padding: 0.6rem 0.8rem;
-    border-radius: 8px;
-    display: none;
+    margin-top: 1rem; font-size: 0.88rem;
+    text-align: center; min-height: 1.3em;
+    padding: 0.6rem 0.8rem; border-radius: 8px; display: none;
   }
   #status.info    { background: #1a2a3a; color: #7ab8f5; display: block; }
   #status.success { background: #0f2a18; color: #5cd68a; display: block; }
@@ -108,7 +132,7 @@
 <body>
 <div class="card">
   <h1>NFC Bild-Writer</h1>
-  <p class="sub">Beliebiges Bild → automatisch auf Chip-Größe skaliert → auf NFC schreiben</p>
+  <p class="sub">Beliebiges Bild → optimiert → auf NFC-Chip schreiben</p>
 
   <div class="dropzone" id="dropzone">
     <input type="file" id="fileInput" accept="image/*">
@@ -130,11 +154,41 @@
     </div>
   </div>
 
-  <div id="sizeControls" style="display:none">
+  <div class="controls" id="controls">
+
     <div class="slider-row">
-      <label>Max. Chip-Speicher <span id="limitLabel">504 B (NTAG215)</span></label>
+      <label>Chip-Speicher <span id="limitLabel">504 B (NTAG215)</span></label>
       <input type="range" id="limitSlider" min="144" max="888" step="1" value="504">
     </div>
+
+    <hr class="divider">
+    <div class="section-label">1 · Farbmodus</div>
+    <div class="opt-row" id="colorModeRow">
+      <div class="opt-btn active" data-mode="rgb">🎨 RGB</div>
+      <div class="opt-btn" data-mode="gray">⬜ Graustufen</div>
+      <div class="opt-btn" data-mode="pal16">🎭 16 Farben</div>
+      <div class="opt-btn" data-mode="pal4">🟫 4 Farben</div>
+      <div class="opt-btn" data-mode="bw">◼ S/W</div>
+    </div>
+
+    <hr class="divider">
+    <div class="section-label">2 · Dithering</div>
+    <div class="opt-row" id="ditherRow">
+      <div class="opt-btn active" data-dither="none">Kein</div>
+      <div class="opt-btn" data-dither="fs">Floyd-Steinberg</div>
+      <div class="opt-btn" data-dither="ordered">Ordered</div>
+    </div>
+
+    <hr class="divider">
+    <div class="section-label">3 · PNG-Filter-Optimierung</div>
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="filterOptToggle">
+        <span class="toggle-slider"></span>
+      </label>
+      <span>Besten Zeilenfilter automatisch wählen<br><span style="font-size:0.72rem;color:#666">langsamer, aber kleinere Datei</span></span>
+    </div>
+
   </div>
 
   <div id="feedback"></div>
@@ -148,105 +202,342 @@
 <canvas id="canvas" style="display:none"></canvas>
 
 <script>
-const CHIP_LIMITS = {144: 'NTAG213', 504: 'NTAG215', 888: 'NTAG216'};
-const MAX_BYTES = 504;
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const dropzone      = document.getElementById('dropzone');
+const fileInput     = document.getElementById('fileInput');
+const previewRow    = document.getElementById('previewRow');
+const previewOrig   = document.getElementById('previewOrig');
+const previewOut    = document.getElementById('previewOut');
+const metaOrig      = document.getElementById('metaOrig');
+const metaOut       = document.getElementById('metaOut');
+const limitSlider   = document.getElementById('limitSlider');
+const limitLabel    = document.getElementById('limitLabel');
+const controlsEl    = document.getElementById('controls');
+const feedbackEl    = document.getElementById('feedback');
+const writeBtn      = document.getElementById('writeBtn');
+const statusEl      = document.getElementById('status');
+const filterToggle  = document.getElementById('filterOptToggle');
+const canvas        = document.getElementById('canvas');
+const ctx           = canvas.getContext('2d');
 
-const dropzone   = document.getElementById('dropzone');
-const fileInput  = document.getElementById('fileInput');
-const previewRow = document.getElementById('previewRow');
-const previewOrig= document.getElementById('previewOrig');
-const previewOut = document.getElementById('previewOut');
-const metaOrig   = document.getElementById('metaOrig');
-const metaOut    = document.getElementById('metaOut');
-const limitSlider= document.getElementById('limitSlider');
-const limitLabel = document.getElementById('limitLabel');
-const sizeControls=document.getElementById('sizeControls');
-const feedbackEl = document.getElementById('feedback');
-const writeBtn   = document.getElementById('writeBtn');
-const statusEl   = document.getElementById('status');
-const canvas     = document.getElementById('canvas');
-const ctx        = canvas.getContext('2d');
+let origImage    = null;
+let finalPngBytes= null;
+let colorMode    = 'rgb';
+let ditherMode   = 'none';
 
-let origImage = null;
-let finalPngBytes = null;
-
-function setStatus(msg, type) {
-  statusEl.textContent = msg;
-  statusEl.className = type;
-}
-
-function formatBytes(n) {
-  return n < 1024 ? n + ' B' : (n/1024).toFixed(1)+' KB';
-}
-
-function chipName(bytes) {
-  if (bytes <= 144) return 'NTAG213';
-  if (bytes <= 504) return 'NTAG215';
-  return 'NTAG216';
-}
-
-// Findet die größte quadratische Größe die in maxBytes passt
-function findBestSize(img, maxBytes) {
-  const aspect = img.naturalWidth / img.naturalHeight;
-  // Probiere von groß nach klein
-  for (let size = 60; size >= 1; size--) {
-    let w, h;
-    if (aspect >= 1) { w = size; h = Math.max(1, Math.round(size / aspect)); }
-    else             { h = size; w = Math.max(1, Math.round(size * aspect)); }
-    canvas.width = w;
-    canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL('image/png');
-    const b64 = dataUrl.split(',')[1];
-    const bytes = Math.ceil(b64.length * 3 / 4);
-    if (bytes <= maxBytes) return { w, h, bytes, dataUrl };
-  }
-  return null;
-}
-
-function processImage() {
-  if (!origImage) return;
-  const maxBytes = parseInt(limitSlider.value);
-  const result = findBestSize(origImage, maxBytes);
-
-  feedbackEl.innerHTML = '';
-  if (!result) {
-    feedbackEl.innerHTML = '<div class="warn">❌ Selbst 1×1px passt nicht in den Speicher – sollte nie passieren.</div>';
-    writeBtn.disabled = true;
-    return;
-  }
-
-  // Vorschau aktualisieren
-  previewOut.src = result.dataUrl;
-  metaOut.textContent = `${result.w} × ${result.h} px  ·  ${formatBytes(result.bytes)}`;
-
-  // Bytes für Schreiben speichern
-  const b64 = result.dataUrl.split(',')[1];
-  const bin = atob(b64);
-  finalPngBytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) finalPngBytes[i] = bin.charCodeAt(i);
-
-  const pct = Math.round(result.bytes / maxBytes * 100);
-  feedbackEl.innerHTML = `<div class="ok">✅ Passt! ${formatBytes(result.bytes)} von ${formatBytes(maxBytes)} genutzt (${pct}%)</div>`;
-  writeBtn.disabled = false;
-}
-
+// ── Option buttons ────────────────────────────────────────────────────────────
+document.getElementById('colorModeRow').addEventListener('click', e => {
+  const btn = e.target.closest('.opt-btn'); if (!btn) return;
+  document.querySelectorAll('#colorModeRow .opt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  colorMode = btn.dataset.mode;
+  processImage();
+});
+document.getElementById('ditherRow').addEventListener('click', e => {
+  const btn = e.target.closest('.opt-btn'); if (!btn) return;
+  document.querySelectorAll('#ditherRow .opt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ditherMode = btn.dataset.dither;
+  processImage();
+});
+filterToggle.addEventListener('change', processImage);
 limitSlider.addEventListener('input', () => {
   const v = parseInt(limitSlider.value);
   limitLabel.textContent = `${formatBytes(v)} (${chipName(v)})`;
   processImage();
 });
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatBytes(n) { return n < 1024 ? n+' B' : (n/1024).toFixed(1)+' KB'; }
+function chipName(b)    { return b<=144?'NTAG213':b<=504?'NTAG215':'NTAG216'; }
+function setStatus(msg,type){ statusEl.textContent=msg; statusEl.className=type; }
+
+// ── Color quantization ────────────────────────────────────────────────────────
+function quantize(imageData, mode) {
+  const d = new Uint8ClampedArray(imageData.data);
+  const w = imageData.width, h = imageData.height;
+
+  if (mode === 'gray') {
+    for (let i = 0; i < d.length; i += 4) {
+      const g = Math.round(0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]);
+      d[i]=d[i+1]=d[i+2]=g;
+    }
+  } else if (mode === 'bw') {
+    for (let i = 0; i < d.length; i += 4) {
+      const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      const v = g >= 128 ? 255 : 0;
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+  } else if (mode === 'pal16' || mode === 'pal4') {
+    const levels = mode === 'pal16' ? 4 : 2; // per channel steps
+    const step = 255 / (levels - 1);
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = Math.round(Math.round(d[i]   / step) * step);
+      d[i+1] = Math.round(Math.round(d[i+1] / step) * step);
+      d[i+2] = Math.round(Math.round(d[i+2] / step) * step);
+    }
+  }
+  return new ImageData(d, w, h);
+}
+
+// ── Dithering ─────────────────────────────────────────────────────────────────
+function dither(imageData, mode, colorModeStr) {
+  if (mode === 'none') return imageData;
+  const d = new Float32Array(imageData.data); // work in float
+  const w = imageData.width, h = imageData.height;
+
+  function levels(colorModeStr) {
+    if (colorModeStr === 'bw')    return [0, 255];
+    if (colorModeStr === 'pal4')  return [0, 85, 170, 255];
+    if (colorModeStr === 'pal16') return [0, 85, 170, 255];
+    return null; // rgb/gray: no palette quantization needed for dither
+  }
+
+  function nearest(v, lvls) {
+    if (!lvls) return Math.max(0, Math.min(255, Math.round(v)));
+    return lvls.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
+  }
+
+  const lvls = levels(colorModeStr);
+  const channels = (colorModeStr === 'gray' || colorModeStr === 'bw') ? [0] : [0, 1, 2];
+
+  if (mode === 'fs') {
+    // Floyd-Steinberg
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        for (const c of channels) {
+          const old = d[i+c];
+          const nw  = nearest(old, lvls);
+          const err = old - nw;
+          d[i+c] = nw;
+          if (colorModeStr === 'gray' || colorModeStr === 'bw') {
+            // copy to all channels
+            d[i+1] = d[i+2] = d[i];
+          }
+          if (x+1 < w)         d[i+4+c]         += err * 7/16;
+          if (y+1 < h && x > 0)d[((y+1)*w+x-1)*4+c] += err * 3/16;
+          if (y+1 < h)         d[((y+1)*w+x)*4+c]   += err * 5/16;
+          if (y+1 < h && x+1<w)d[((y+1)*w+x+1)*4+c] += err * 1/16;
+        }
+      }
+    }
+  } else if (mode === 'ordered') {
+    const bayer = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const threshold = (bayer[y%4][x%4] / 16 - 0.5) * 64;
+        for (const c of channels) {
+          d[i+c] = nearest(d[i+c] + threshold, lvls);
+        }
+        if (colorModeStr === 'gray' || colorModeStr === 'bw') {
+          d[i+1] = d[i+2] = d[i];
+        }
+      }
+    }
+  }
+
+  const out = new Uint8ClampedArray(imageData.data.length);
+  for (let i = 0; i < d.length; i++) out[i] = Math.max(0, Math.min(255, Math.round(d[i])));
+  return new ImageData(out, w, h);
+}
+
+// ── Optimized PNG encoder ─────────────────────────────────────────────────────
+// Builds PNG manually, trying all 5 filters per row and picking smallest
+function encodePNG(imageData) {
+  const w = imageData.width, h = imageData.height;
+  const pixels = imageData.data;
+
+  function paethPredictor(a, b, c) {
+    const p = a + b - c;
+    const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  }
+
+  function filterRow(type, row, prev) {
+    const out = new Uint8Array(row.length);
+    for (let i = 0; i < row.length; i++) {
+      const x  = row[i];
+      const a  = i >= 3 ? row[i-3] : 0;
+      const b  = prev ? prev[i] : 0;
+      const c  = (prev && i >= 3) ? prev[i-3] : 0;
+      switch(type) {
+        case 0: out[i] = x; break;
+        case 1: out[i] = (x - a) & 0xff; break;
+        case 2: out[i] = (x - b) & 0xff; break;
+        case 3: out[i] = (x - Math.floor((a + b) / 2)) & 0xff; break;
+        case 4: out[i] = (x - paethPredictor(a, b, c)) & 0xff; break;
+      }
+    }
+    return out;
+  }
+
+  function sumAbsolute(arr) {
+    let s = 0; for (const v of arr) s += v > 127 ? 256 - v : v; return s;
+  }
+
+  // Build raw scanlines (RGB, no alpha)
+  const scanlines = [];
+  for (let y = 0; y < h; y++) {
+    const row = new Uint8Array(w * 3);
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      row[x*3]   = pixels[i];
+      row[x*3+1] = pixels[i+1];
+      row[x*3+2] = pixels[i+2];
+    }
+    scanlines.push(row);
+  }
+
+  const useOptFilter = filterToggle.checked;
+
+  // Build IDAT raw data with filter bytes
+  const rawRows = [];
+  for (let y = 0; y < h; y++) {
+    const row  = scanlines[y];
+    const prev = y > 0 ? scanlines[y-1] : null;
+    let bestType = 0, bestData = null, bestScore = Infinity;
+
+    const typesToTry = useOptFilter ? [0,1,2,3,4] : [0];
+    for (const t of typesToTry) {
+      const filtered = filterRow(t, row, prev);
+      const score = sumAbsolute(filtered);
+      if (score < bestScore) { bestScore = score; bestType = t; bestData = filtered; }
+    }
+    const withType = new Uint8Array(bestData.length + 1);
+    withType[0] = bestType;
+    withType.set(bestData, 1);
+    rawRows.push(withType);
+  }
+
+  // Concatenate all rows
+  const totalLen = rawRows.reduce((s, r) => s + r.length, 0);
+  const raw = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const r of rawRows) { raw.set(r, offset); offset += r.length; }
+
+  // Zlib compress via DecompressionStream trick (compress in reverse)
+  // We use pako-less approach: DeflateRaw via CompressionStream
+  return new Promise(resolve => {
+    const cs = new CompressionStream('deflate');
+    const writer = cs.writable.getWriter();
+    const reader = cs.readable.getReader();
+    const chunks = [];
+    reader.read().then(function pump({done, value}) {
+      if (done) {
+        // Build PNG
+        const compressed = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
+        let off = 0; for (const c of chunks) { compressed.set(c,off); off+=c.length; }
+
+        // Wrap in zlib (deflate + adler32 header/checksum)
+        // CompressionStream('deflate') gives raw deflate; wrap in zlib manually
+        // Actually CompressionStream('deflate-raw') = raw, 'deflate' = zlib wrapped
+        // We used 'deflate' so it's already zlib-wrapped — perfect for PNG IDAT
+
+        function crc32(buf) {
+          let c = 0xffffffff;
+          for (const b of buf) {
+            c ^= b;
+            for (let k=0;k<8;k++) c = (c&1)?(0xedb88320^(c>>>1)):(c>>>1);
+          }
+          return (c^0xffffffff)>>>0;
+        }
+        function u32be(n) { return [(n>>>24)&0xff,(n>>>16)&0xff,(n>>>8)&0xff,n&0xff]; }
+        function chunk(type, data) {
+          const t = new TextEncoder().encode(type);
+          const lenBytes = u32be(data.length);
+          const crcInput = new Uint8Array(4+data.length);
+          crcInput.set(t); crcInput.set(data,4);
+          const crcBytes = u32be(crc32(crcInput));
+          return [...lenBytes,...t,...data,...crcBytes];
+        }
+
+        const sig = [137,80,78,71,13,10,26,10];
+        const ihdr = chunk('IHDR', new Uint8Array([
+          ...u32be(w),...u32be(h),
+          8, 2, 0, 0, 0  // 8-bit RGB
+        ]));
+        const idat = chunk('IDAT', compressed);
+        const iend = chunk('IEND', new Uint8Array(0));
+
+        const total = sig.length + ihdr.length + idat.length + iend.length;
+        const png = new Uint8Array(total);
+        let p = 0;
+        for (const part of [sig, ihdr, idat, iend]) {
+          png.set(part, p); p += part.length;
+        }
+        resolve(png);
+        return;
+      }
+      chunks.push(value);
+      reader.read().then(pump);
+    });
+    writer.write(raw);
+    writer.close();
+  });
+}
+
+// ── Main pipeline ─────────────────────────────────────────────────────────────
+async function findBestSize(img, maxBytes) {
+  const aspect = img.naturalWidth / img.naturalHeight;
+  for (let size = 80; size >= 1; size--) {
+    let w, h;
+    if (aspect >= 1) { w = size; h = Math.max(1, Math.round(size / aspect)); }
+    else             { h = size; w = Math.max(1, Math.round(size * aspect)); }
+    canvas.width = w; canvas.height = h;
+    ctx.clearRect(0,0,w,h);
+    ctx.drawImage(img,0,0,w,h);
+    let imageData = ctx.getImageData(0,0,w,h);
+
+    // Apply color mode first, then dither
+    imageData = quantize(imageData, colorMode);
+    imageData = dither(imageData, ditherMode, colorMode);
+
+    const pngBytes = await encodePNG(imageData);
+    if (pngBytes.length <= maxBytes) {
+      // Build data URL for preview
+      const blob = new Blob([pngBytes], {type:'image/png'});
+      const dataUrl = URL.createObjectURL(blob);
+      return { w, h, bytes: pngBytes.length, dataUrl, pngBytes };
+    }
+  }
+  return null;
+}
+
+async function processImage() {
+  if (!origImage) return;
+  const maxBytes = parseInt(limitSlider.value);
+  feedbackEl.innerHTML = '<div class="meta" style="color:#666">⏳ Berechne…</div>';
+  writeBtn.disabled = true;
+
+  const result = await findBestSize(origImage, maxBytes);
+  feedbackEl.innerHTML = '';
+
+  if (!result) {
+    feedbackEl.innerHTML = '<div class="warn">❌ Selbst 1×1px passt nicht.</div>';
+    return;
+  }
+
+  previewOut.src = result.dataUrl;
+  metaOut.textContent = `${result.w} × ${result.h} px\n${formatBytes(result.bytes)}`;
+
+  finalPngBytes = result.pngBytes;
+  const pct = Math.round(result.bytes / maxBytes * 100);
+  feedbackEl.innerHTML = `<div class="ok">✅ ${result.w}×${result.h}px · ${formatBytes(result.bytes)} von ${formatBytes(maxBytes)} (${pct}%)</div>`;
+  writeBtn.disabled = false;
+}
+
+// ── File load ─────────────────────────────────────────────────────────────────
 async function loadFile(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
     origImage = img;
     previewOrig.src = url;
-    metaOrig.textContent = `${img.naturalWidth} × ${img.naturalHeight} px  ·  ${formatBytes(file.size)}  ·  ${file.type || 'image'}`;
+    metaOrig.textContent = `${img.naturalWidth} × ${img.naturalHeight} px\n${formatBytes(file.size)}`;
     previewRow.style.display = 'flex';
-    sizeControls.style.display = 'block';
+    controlsEl.style.display = 'block';
     processImage();
   };
   img.src = url;
@@ -260,29 +551,23 @@ dropzone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
+// ── NFC write ────────────────────────────────────────────────────────────────
 writeBtn.addEventListener('click', async () => {
   if (!finalPngBytes) return;
   if (!('NDEFReader' in window)) {
-    setStatus('❌ Web NFC nicht unterstützt – bitte Chrome für Android verwenden.', 'error');
-    return;
+    setStatus('❌ Web NFC nicht unterstützt – bitte Chrome für Android nutzen.', 'error'); return;
   }
-  setStatus('📱 Chip jetzt ans Handy halten...', 'waiting');
+  setStatus('📱 Chip jetzt ans Handy halten…', 'waiting');
   writeBtn.disabled = true;
   try {
     const ndef = new NDEFReader();
     await ndef.write({ records: [{ recordType: 'mime', mediaType: 'image/png', data: finalPngBytes }] });
     setStatus('✅ Erfolgreich auf Chip geschrieben!', 'success');
   } catch (err) {
-    if (err.name === 'NotAllowedError') {
-      setStatus('❌ Berechtigung verweigert – erneut versuchen und Zulassen tippen.', 'error');
-    } else if (err.name === 'NotSupportedError') {
-      setStatus('❌ NFC nicht verfügbar auf diesem Gerät.', 'error');
-    } else {
-      setStatus('❌ Fehler: ' + err.message, 'error');
-    }
-  } finally {
-    writeBtn.disabled = false;
-  }
+    if (err.name === 'NotAllowedError')  setStatus('❌ Berechtigung verweigert.', 'error');
+    else if (err.name === 'NotSupportedError') setStatus('❌ NFC nicht verfügbar.', 'error');
+    else setStatus('❌ Fehler: ' + err.message, 'error');
+  } finally { writeBtn.disabled = false; }
 });
 </script>
 </body>
