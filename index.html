@@ -494,9 +494,20 @@ async function findBestSize(img, maxBytes) {
     imageData = quantize(imageData, colorMode);
     imageData = dither(imageData, ditherMode, colorMode);
 
-    const pngBytes = await encodePNG(imageData);
+    let pngBytes = await encodePNG(imageData);
+
+    // Fallback: wenn eigener Encoder größer ist als canvas.toDataURL, nimm den kleineren
+    const canvasDataUrl = canvas.toDataURL('image/png');
+    const canvasB64 = canvasDataUrl.split(',')[1];
+    const canvasSize = Math.ceil(canvasB64.length * 3 / 4);
+    if (canvasSize < pngBytes.length) {
+      const bin = atob(canvasB64);
+      const fallback = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) fallback[i] = bin.charCodeAt(i);
+      pngBytes = fallback;
+    }
+
     if (pngBytes.length <= maxBytes) {
-      // Build data URL for preview
       const blob = new Blob([pngBytes], {type:'image/png'});
       const dataUrl = URL.createObjectURL(blob);
       return { w, h, bytes: pngBytes.length, dataUrl, pngBytes };
